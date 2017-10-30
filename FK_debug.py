@@ -3,6 +3,7 @@
 import numpy as np
 from numpy import array
 from sympy import symbols, cos, sin, pi, simplify, sqrt, atan2, lambdify
+from sympy import pprint
 from sympy.matrices import Matrix
 from sympy.abc import q, a, d, alpha
 import logging
@@ -61,6 +62,8 @@ T0_1 = Matrix([[            cos(q1),            -sin(q1),            0,         
                ])
 logger.debug("T0_1 defined")
 T0_1 = T0_1.subs(s)
+pprint(T0_1)
+
 logger.debug("T0_1 subs")
 
 T1_2 = Matrix([[            cos(q2),            -sin(q2),            0,              a1],
@@ -69,6 +72,7 @@ T1_2 = Matrix([[            cos(q2),            -sin(q2),            0,         
                [                  0,                   0,            0,               1]
                ])
 T1_2 = T1_2.subs(s)
+pprint(T1_2)
 logger.debug("T1_2 subs")
 
 T2_3 = Matrix([[            cos(q3),            -sin(q3),            0,              a2],
@@ -77,6 +81,7 @@ T2_3 = Matrix([[            cos(q3),            -sin(q3),            0,         
                [                  0,                   0,            0,               1]
                ])
 T2_3 = T2_3.subs(s)
+pprint(T2_3)
 logger.debug("T2_3 subs")
 
 T3_4 = Matrix([[            cos(q4),            -sin(q4),            0,              a3],
@@ -85,6 +90,7 @@ T3_4 = Matrix([[            cos(q4),            -sin(q4),            0,         
                [                  0,                   0,            0,               1]
                ])
 T3_4 = T3_4.subs(s)
+pprint(T3_4)
 logger.debug("T3_4 subs")
 
 T4_5 = Matrix([[            cos(q5),            -sin(q5),            0,              a4],
@@ -93,6 +99,7 @@ T4_5 = Matrix([[            cos(q5),            -sin(q5),            0,         
                [                  0,                   0,            0,               1]
                ])
 T4_5 = T4_5.subs(s)
+pprint(T4_5)
 logger.debug("T4_5 subs")
 
 T5_6 = Matrix([[            cos(q6),            -sin(q6),            0,              a5],
@@ -101,6 +108,7 @@ T5_6 = Matrix([[            cos(q6),            -sin(q6),            0,         
                [                  0,                   0,            0,               1]
                ])
 T5_6 = T5_6.subs(s)
+pprint(T5_6)
 logger.debug("T5_6 subs")
 
 T6_G = Matrix([[            cos(q7),            -sin(q7),            0,              a6],
@@ -109,6 +117,7 @@ T6_G = Matrix([[            cos(q7),            -sin(q7),            0,         
                [                  0,                   0,            0,               1]
                ])
 T6_G = T6_G.subs(s)
+pprint(T6_G)
 logger.debug("T6_G subs")
 
 # Composition of Homogenous Transforms
@@ -169,6 +178,10 @@ logger.debug("T0_G")
 # logger.debug("T_total simplify")
 T_total = T0_G * R_corr
 logger.debug("T_total matrix multiply")
+# pprint(T_total)
 print("T_total = ", T_total.evalf(subs=joints))
+
+# logger.debug("final simplify start")
+# pprint(simplify(T_total))
 
 logger.debug("finish")
