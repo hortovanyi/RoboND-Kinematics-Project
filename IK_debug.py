@@ -138,9 +138,10 @@ def test_code(test_case):
                     ])
     T6_G = T6_G.subs(s)
 
-    T0_6 = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6
-    T0_G = T0_6 * T6_G
+    T0_G = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_G
 
+    # pprint(T0_1)
+    # pprint(T0_G)
     # Extract end-effector position and orientation from request
     # px,py,pz = end-effector position
     # roll, pitch, yas = end-effector orientation

@@ -96,7 +96,7 @@ def handle_calculate_IK(req):
                     [                  0,                   0,            0,               1]
                     ])
     T6_G = T6_G.subs(s)
-
+    # Calculate Gripper/end-effector matrix
     T0_G = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_G
 
     # Extract rotation matrices from the transformation matrices
