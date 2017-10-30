@@ -5,6 +5,7 @@ Robotics Nano Degree
 [![Udacity - Robotics NanoDegree Program](https://s3-us-west-1.amazonaws.com/udacity-robotics/Extra+Images/RoboND_flag.png)](https://www.udacity.com/robotics)
 
 [//]: # (Written by Nick Hortovanyi Oct 30th 2017)
+
 ---
 ![Gazebo Kuka Arm Simulator Output](https://github.com/hortovanyi/RoboND-Kinematics-Project/blob/master/output/Gazebo-KukuArm.png?raw=true)
 
@@ -181,7 +182,7 @@ R3_6 = inv(R0_3) * Rrpy
 ```
 Theta 4,5,6 are derived from R3_6. Theta 4 & 6 is clipped +-350 degrees. Theta 5 to +-125 degrees.
 
-
+---
 [![Udacity - Robotics NanoDegree Program](https://s3-us-west-1.amazonaws.com/udacity-robotics/Extra+Images/RoboND_flag.png)](https://www.udacity.com/robotics)
 # Robotic arm - Pick & Place project
 
