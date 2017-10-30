@@ -38,12 +38,12 @@ def handle_calculate_IK(req):
     # a represents the link lengths
     # d represents the link offsets
     # Q represents the joint varbles, the thetas
-    s = {alpha0:    0,  a0: 0,      d1: 0.75,   q1: q1,
+    s = {alpha0:    0,  a0: 0,      d1: 0.75,
          alpha1: -pi/2, a1: 0.35,   d2: 0,      q2: -pi/2. + q2,
-         alpha2:    0,  a2: 1.25,   d3: 0,      q3: q3,
-         alpha3: -pi/2, a3: -0.054, d4: 1.50,   q4: q4,
-         alpha4:  pi/2, a4: 0,      d5: 0,      q5: q5,
-         alpha5: -pi/2, a5: 0,      d6: 0,      q6: q6,
+         alpha2:    0,  a2: 1.25,   d3: 0,
+         alpha3: -pi/2, a3: -0.054, d4: 1.50,
+         alpha4:  pi/2, a4: 0,      d5: 0,
+         alpha5: -pi/2, a5: 0,      d6: 0,
          alpha6:     0, a6: 0,      d7: 0.303, q7: 0
          }
 
@@ -154,25 +154,37 @@ def handle_calculate_IK(req):
         ###
         Rot_Error = ROT_z.subs(y, radians(180)) * ROT_y.subs(p, radians(-90))
 
-        ROT_EE = ROT_z * ROT_y * ROT_x
-        ROT_EE = ROT_EE * Rot_Error
-        ROT_EE = ROT_EE.subs({'r': roll, 'p': pitch, 'y': yaw})
+        ROT_EE = ROT_z * ROT_y * ROT_x * Rot_Error
 
-        EE = Matrix([[px],
-                     [py],
-                     [pz]])
+        Rrpy = ROT_EE.subs({'r': roll, 'p': pitch, 'y': yaw})
+
+
         # Calculate joint angles using Geometric IK method
         ###
         # Wrist Center
-        WC = EE - (0.303) * ROT_EE[:,2]
+        nx = Rrpy[0,2]
+        ny = Rrpy[1,2]
+        nz = Rrpy[2,2]
+        l = s[d7]  # End Effector length
+        wcx = px - (s[d6] + l) * nx
+        wcy = py - (s[d6] + l) * ny
+        wcz = pz - (s[d6] + l) * nz
 
         # Calculate joint angles using Geometrix IK method
         # More information can be found in the Inverse Kinematics with Kuka KR210
-        theta1 = atan2(WC[1], WC[0])
+        def clip(n, min, max):
+            if n < min:
+                n = min
+            elif n > max:
+                n = max
+            return n
+
+
+        theta1 = clip(atan2(wcy, wcx), radians(-185), radians(185))
 
         # SSS triangle for theta2 and theta3
         side_a = 1.501
-        side_b = sqrt(pow((sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35), 2) + pow((WC[2] - 0.75), 2))
+        side_b = sqrt(pow((sqrt(wcx * wcx + wcy * wcy) - 0.35), 2) + pow((wcz - 0.75), 2))
         side_c = 1.25
 
         side_a_sq = side_a * side_a
@@ -183,21 +195,22 @@ def handle_calculate_IK(req):
         angle_b = acos((side_a_sq + side_c_sq - side_b_sq)/(2 * side_a * side_c))
         angle_c = acos((side_a_sq + side_b_sq - side_c_sq)/(2 * side_a * side_b))
 
-        theta2 = pi/2 - angle_a - atan2(WC[2] - 0.75, sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35)
+        theta2 = pi/2 - angle_a - atan2(wcz - 0.75, sqrt(wcx * wcx + wcy * wcy) - 0.35)
+        theta2 = clip(theta2, radians(-45), radians(85))
         theta3 = pi/2 - (angle_b + 0.036)  # 0.036 accounts for sag in link4 of -0.054 m
+        theta3 = clip(theta3, radians(-210), radians(155-90))
 
-        # R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
-        T0_3 = T0_1 * T1_2 * T2_3
-        R0_3 = T0_3[0:3,0:3]
+        R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
         R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
 
-        R3_6 = R0_3.inv("LU") * ROT_EE
+        # R3_6 = R0_3.inv("LU") * Rrpy
+        R3_6 = R0_3.transpose() * Rrpy
 
         # Euler angles from rotation matrix
-        # More information can be found in the Euler Angles from a Rotation Matrix section
-        theta4 = atan2(R3_6[2,2], -R3_6[0,2])
-        theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2])
-        theta6 = atan2(-R3_6[1,2], R3_6[1,0])
+        # More informaiton can be found in hte Euler Angles from a Rotation Matrix section
+        theta4 = clip(atan2(R3_6[2,2], -R3_6[0,2]), radians(-350), radians(350))
+        theta5 = clip(atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2]), radians(-125), radians(125))
+        theta6 = clip(atan2(-R3_6[1,2], R3_6[1,0]), radians(-350), radians(350))
 
         # Populate response for the IK request
         # In the next line replace theta1,theta2...,theta6 by your joint angle variables

@@ -2,7 +2,7 @@
 
 from sympy import *
 from time import time
-from mpmath import radians
+from mpmath import radians, mp
 import tf
 
 '''
@@ -11,6 +11,7 @@ You can generate additional test cases by setting up your kuka project and runni
 From here you can adjust the joint angles to find thetas, use the gripper to extract positions and orientation (in quaternion xyzw) and lastly use link 5
 to find the position of the wrist center. These newly generated test cases can be added to the test_cases dictionary.
 '''
+# mp.dps = 5
 
 test_cases = {1:[[[2.16135,-1.42635,1.55109],
                   [0.708611,0.186356,-0.157931,0.661967]],
@@ -79,12 +80,12 @@ def test_code(test_case):
     # a represents the link lengths
     # d represents the link offsets
     # Q represents the joint varbles, the thetas
-    s = {alpha0:    0,  a0: 0,      d1: 0.75,   q1: q1,
+    s = {alpha0:    0,  a0: 0,      d1: 0.75,
          alpha1: -pi/2, a1: 0.35,   d2: 0,      q2: -pi/2. + q2,
-         alpha2:    0,  a2: 1.25,   d3: 0,      q3: q3,
-         alpha3: -pi/2, a3: -0.054, d4: 1.50,   q4: q4,
-         alpha4:  pi/2, a4: 0,      d5: 0,      q5: q5,
-         alpha5: -pi/2, a5: 0,      d6: 0,      q6: q6,
+         alpha2:    0,  a2: 1.25,   d3: 0,
+         alpha3: -pi/2, a3: -0.054, d4: 1.50,
+         alpha4:  pi/2, a4: 0,      d5: 0,
+         alpha5: -pi/2, a5: 0,      d6: 0,
          alpha6:     0, a6: 0,      d7: 0.303, q7: 0
          }
 
@@ -137,7 +138,8 @@ def test_code(test_case):
                     ])
     T6_G = T6_G.subs(s)
 
-    # T0_G = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_G
+    T0_6 = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6
+    T0_G = T0_6 * T6_G
 
     # Extract end-effector position and orientation from request
     # px,py,pz = end-effector position
@@ -146,10 +148,14 @@ def test_code(test_case):
     py = req.poses[x].position.y
     pz = req.poses[x].position.z
 
+    print ("px=%f,py=%f,pz=%f" % (px, py, pz))
+
     (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
         [req.poses[x].orientation.x, req.poses[x].orientation.y,
          req.poses[x].orientation.z, req.poses[x].orientation.w]
     )
+
+    print ("roll=%f,pitch=%f,yaw=%f" % (roll, pitch, yaw))
 
     r, p, y = symbols('r p y')
 
@@ -165,27 +171,64 @@ def test_code(test_case):
                     [sin(y), cos(y), 0],
                     [0, 0, 1]
                     ])
-    ROT_EE = ROT_z * ROT_y * ROT_x
+
 
     Rot_Error = ROT_z.subs(y, radians(180)) * ROT_y.subs(p, radians(-90))
+    ROT_EE = ROT_z * ROT_y * ROT_x * Rot_Error
 
-    ROT_EE = ROT_EE * Rot_Error
-    ROT_EE = ROT_EE.subs({'r': roll, 'p': pitch, 'y': yaw})
+    # R_z = Matrix([[cos(pi), -sin(pi), 0, 0],
+    #               [sin(pi),  cos(pi), 0, 0],
+    #               [      0,        0, 1, 0],
+    #               [      0,        0, 0, 1]
+    #               ])
+    # R_y = Matrix([[ cos(-pi/2),  0,  sin(-pi/2), 0],
+    #               [          0,  1,           0, 0],
+    #               [-sin(-pi/2),  0,  cos(-pi/2), 0],
+    #               [          0,  0,           0, 1]
+    #               ])
+    # # R_corr = simplify(R_z * R_y)
+    # R_corr = R_z * R_y
+    #
+    # ROT_EE = ROT_z * ROT_y * ROT_x * R_corr[0:3,0:3]
 
-    EE = Matrix([[px],
-                 [py],
-                 [pz]])
+    Rrpy = ROT_EE.subs({'r': roll, 'p': pitch, 'y': yaw})
+
+    # EE = Matrix([[px],
+    #              [py],
+    #              [pz]])
+
+    # print("EE= ", EE)
+    print("Rrpy, ", Rrpy)
 
     # Wrist Center
-    WC = EE - (0.303) * ROT_EE[:,2]
+    # WC = EE - (0.303) * Rrpy[:,2]
+    # print("WC= ", WC)
+
+    nx = Rrpy[0,2]
+    ny = Rrpy[1,2]
+    nz = Rrpy[2,2]
+    print("nx=%f,ny=%f,nz=%f" % (nx, ny, nz))
+
+    # calculate wrist center
+    l = s[d7]  # End Effector length
+    wcx = px - (s[d6] + l) * nx
+    wcy = py - (s[d6] + l) * ny
+    wcz = pz - (s[d6] + l) * nz
+    print("wcx=%f,wcy=%f,wcz=%f" % (wcx, wcy, wcz))
 
     # Calculate joint angles using Geometrix IK method
-    # More information can be found in the Inverse Kinematics with Kuka KR210
-    theta1 = atan2(WC[1], WC[0])
+    def clip(n, min, max):
+        if n < min:
+            n = min
+        elif n > max:
+            n = max
+        return n
+
+    theta1 = clip(atan2(wcy, wcx), radians(-185), radians(185))
 
     # SSS triangle for theta2 and theta3
     side_a = 1.501
-    side_b = sqrt(pow((sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35), 2) + pow((WC[2] - 0.75), 2))
+    side_b = sqrt(pow((sqrt(wcx * wcx + wcy * wcy) - 0.35), 2) + pow((wcz - 0.75), 2))
     side_c = 1.25
 
     side_a_sq = side_a * side_a
@@ -196,19 +239,22 @@ def test_code(test_case):
     angle_b = acos((side_a_sq + side_c_sq - side_b_sq)/(2 * side_a * side_c))
     angle_c = acos((side_a_sq + side_b_sq - side_c_sq)/(2 * side_a * side_b))
 
-    theta2 = pi/2 - angle_a - atan2(WC[2] - 0.75, sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35)
+    theta2 = pi/2 - angle_a - atan2(wcz - 0.75, sqrt(wcx * wcx + wcy * wcy) - 0.35)
+    theta2 = clip(theta2, radians(-45), radians(85))
     theta3 = pi/2 - (angle_b + 0.036)  # 0.036 accounts for sag in link4 of -0.054 m
+    theta3 = clip(theta3, radians(-210), radians(155-90))
 
     R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
     R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
 
-    R3_6 = R0_3.inv("LU") * ROT_EE
+    # R3_6 = R0_3.inv("LU") * Rrpy
+    R3_6 = R0_3.transpose() * Rrpy
 
     # Euler angles from rotation matrix
     # More informaiton can be found in hte Euler Angles from a Rotation Matrix section
-    theta4 = atan2(R3_6[2,2], -R3_6[0,2])
-    theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2])
-    theta6 = atan2(-R3_6[1,2], R3_6[1,0])
+    theta4 = clip(atan2(R3_6[2,2], -R3_6[0,2]), radians(-350), radians(350))
+    theta5 = clip(atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2]), radians(-125), radians(125))
+    theta6 = clip(atan2(-R3_6[1,2], R3_6[1,0]), radians(-350), radians(350))
 
     ##
     ########################################################################################
@@ -218,13 +264,15 @@ def test_code(test_case):
     ## as the input and output the position of your end effector as your_ee = [x,y,z]
 
     ## (OPTIONAL) YOUR CODE HERE!
-    FK = T0_G.evalf(subs={q1: theta1, q2: theta2, q3: theta3, q4: theta4, q5: theta5, q6: theta6})
+    FK = T0_G.evalf(subs={q1: theta1, q2: theta2, q3: theta3, q4: theta4, q5: theta5, q6: theta6, q7: 0})
+    # FK = T0_6.evalf(subs={q1: theta1, q2: theta2, q3: theta3, q4: theta4, q5: theta5, q6: theta6})
+    print("thetas=", theta1, theta2, theta3, theta4, theta5, theta6 )
 
     ## End your code input for forward kinematics here!
     ########################################################################################
 
     ## For error analysis please set the following variables of your WC location and EE location in the format of [x,y,z]
-    your_wc = [WC[0],WC[1],WC[2]] # <--- Load your calculated WC values in this array
+    your_wc = [wcx ,wcy, wcz] # <--- Load your calculated WC values in this array
     your_ee = [FK[0,3],FK[1,3],FK[2,3]] # <--- Load your calculated end effector value from your forward kinematics
     ########################################################################################
 
