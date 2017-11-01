@@ -116,7 +116,7 @@ Note: R_corr is a 180 degree rotation around the Z axis followed by a -90 degree
 #### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
 
 ##### Inverse Position
-The spherical wrist involves joints 4,5 and 6. The position of the wrist centre is governed is governed by the first three joints.
+The spherical wrist involves joints 4,5 and 6. The position of the wrist centre is governed by the first three joints.
 
 We can derive the wrist centre by using the complete transformation matrix. Symbolically the homogeneous transform follows
 
@@ -129,9 +129,9 @@ We can derive the wrist centre by using the complete transformation matrix. Symb
 where l,m and n are orthonormal vectors representing the end-effector orientation along X,Y,Z axes of local coordinates.
 
 ```
-wcx = px - (s[d6] + l) * nx
-wcy = py - (s[d6] + l) * ny
-wcz = pz - (s[d6] + l) * nz
+wcx = px - (d6 + l) * nx
+wcy = py - (d6 + l) * ny
+wcz = pz - (d6 + l) * nz
 ```
 where l is the end effort length and d6 = 0 (link 6 length).
 
@@ -161,13 +161,33 @@ nz = Rrpy[2,2]
 ```
 Where euler roll, pitch and yaw are extracted from the quaternion for the end effector pose and thus Rrpy = Homogeneous RPY rotation between base and gripper.
 
-theta1 is calculated as the `atan2(wcy, wcx)` clipped to +- 185 degrees
+`theta1 = atan2(wcy, wcx)` and is clipped to +- 185 degrees.
 
-Theta2 & Theta3 are calculated using Cosine Laws as joint distances are known from the DH table. Theta 2 is clipped to -45 and +85 degrees. Theta 3 is clipped to -210 and +155-90 degrees.
+![TTheta 2 and Theta 3 Angles Diagram](https://github.com/hortovanyi/RoboND-Kinematics-Project/blob/master/output/l21-l-inverse-kinematics-new-design-fixed.png?raw=true)
+
+where
+
+```
+side_a = 1.501 #(d4)
+side_b = sqrt(pow((sqrt(wcx * wcx + wcy * wcy) - 0.35), 2) + pow((wcz - 0.75), 2))
+side_c = 1.25 #(a2)
+```
+
+
+
+`angle_a`, `angle_b` and `angle_c` are derived using [SSS triangle rules](https://www.mathsisfun.com/algebra/trig-solving-sss-triangles.html).
+
+```
+Theta2 = pi/2 - angle_a - atan2(wcz - 0.75, sqrt(wcx * wcx + wcy * wcy) - 0.35)
+Theta3 = pi/2 - (angle_b + 0.036)  # 0.036 accounts for sag in link4 of -0.054 m`
+```
+
+Theta 2 is clipped to -45 and +85 degrees. Theta 3 is clipped to -210 and +155-90 degrees.
 
 [//]: # (Written by Nick Hortovanyi Oct 30th 2017)
 
 ##### Inverse Orientation
+
 Given that
 
 ```
@@ -175,12 +195,49 @@ R0_6 = R0_1*R1_2*R2_3*R3_4*R4_5*R5_6
 and
 R0_6 = Rrpy
 ```
-we can precalculate joints 1 to 3 (with theta 1 to 3) leading to
+we can precalculate rotations R0_3 (with theta 1 to 3 substituted) by extracting the rotation matrix from the transformation matrices
+
+```
+R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
+R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
+```
+
+leading to when we divide both sides by `R0_3` to
 
 ```
 R3_6 = inv(R0_3) * Rrpy
 ```
-Theta 4,5,6 are derived from R3_6. Theta 4 & 6 is clipped +-350 degrees. Theta 5 to +-125 degrees.
+
+Theta 4,5,6 are derived from R3_6 using Euler Angles from Rotation Matrix.
+
+```
+theta4 = atan2(R3_6[2,2], -R3_6[0,2])
+theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2])
+theta6 = atan2(-R3_6[1,2], R3_6[1,0])
+```
+Theta 4 & 6 is clipped +-350 degrees. Theta 5 to +-125 degrees.
+All clipping values were extracted for lower and upper limit sassociated with the [joints from the kr210.urdf](https://github.com/hortovanyi/RoboND-Kinematics-Project/blob/cb21cc74037d9e51ee6fe7c50a39acdeedbd387d/kuka_arm/urdf/kr210.urdf.xacro#L316) file.
+
+## Project Implementation
+
+#### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results.
+
+I decided initially in this project to not refactor the code into using classes and abstracting away detail. This was mainly due to the mathematical nature of it and the use of [sympy](http://www.sympy.org/en/index.html). In the [FK_debug.py](https://github.com/hortovanyi/RoboND-Kinematics-Project/blob/master/FK_debug.py) script for the forward kinematics I added debug logging statements to time how long calculations were taking. The `simplify(<fomula>)` function was too slow. Removing them dramatically improved performance.
+
+Whilst I enjoyed learning about sympy, I felt that numpy may have been faster and maybe a better option, if I was start from scratch on this project.
+
+In addition, if I was to redo this project, I'd spend more time creating a class structure/overloaded methods to implement the mathematical rules with associated unit tests. Whilst the code looks concise, for someone learning about this subject, there is no easy way to confirm that the correct maths and rules have been applied, except via trial and error.
+
+When running the simulator the hand often flip/flopped (ie it hasn't travelled the shortest distance, but the longest to get to the desired angle). To overcome this to some degree I found that the course note recommended approach of `R3_6 = R0_3.inv("LU") * Rrpy` should be changed to `R3_6 = R0_3.transpose() * Rrpy`. It improved results dramatically but there were still some instances were it flipped. I thought about smoothing angles for the wrist joints but didn't implement.
+
+Occasionally I also noticed some collisions when joints moved, so I clipped the angles to the limit values in the kr210.urdf.
+
+A video follows of a successful run. I ran the simulation >10 times with one failed attempt before submitting the project.
+
+[![YouTube Video of project output x 4](http://img.youtube.com/vi/tg0pc-ngPQk/0.jpg)](https://www.youtube.com/watch?v=tg0pc-ngPQk)
+
+[YouTube Video of project output x 4](https://www.youtube.com/watch?v=tg0pc-ngPQk)
+
 
 ---
 [![Udacity - Robotics NanoDegree Program](https://s3-us-west-1.amazonaws.com/udacity-robotics/Extra+Images/RoboND_flag.png)](https://www.udacity.com/robotics)

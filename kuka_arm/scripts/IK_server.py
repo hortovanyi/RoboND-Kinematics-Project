@@ -158,6 +158,8 @@ def handle_calculate_IK(req):
 
         # Calculate joint angles using Geometrix IK method
         # More information can be found in the Inverse Kinematics with Kuka KR210
+
+        # lambda function to clip values to between min and max values
         def clip(n, min, max):
             if n < min:
                 n = min
@@ -165,22 +167,24 @@ def handle_calculate_IK(req):
                 n = max
             return n
 
-
         theta1 = clip(atan2(wcy, wcx), radians(-185), radians(185))
 
-        # SSS triangle for theta2 and theta3
+
         side_a = 1.501
         side_b = sqrt(pow((sqrt(wcx * wcx + wcy * wcy) - 0.35), 2) + pow((wcz - 0.75), 2))
         side_c = 1.25
 
+        # side squares
         side_a_sq = side_a * side_a
         side_b_sq = side_b * side_b
         side_c_sq = side_c * side_c
 
+        # angles via SSS triangles
         angle_a = acos((side_b_sq + side_c_sq - side_a_sq)/(2 * side_b * side_c))
         angle_b = acos((side_a_sq + side_c_sq - side_b_sq)/(2 * side_a * side_c))
         angle_c = acos((side_a_sq + side_b_sq - side_c_sq)/(2 * side_a * side_b))
 
+        # SSS triangle for theta2 and theta3
         theta2 = pi/2 - angle_a - atan2(wcz - 0.75, sqrt(wcx * wcx + wcy * wcy) - 0.35)
         theta2 = clip(theta2, radians(-45), radians(85))
         theta3 = pi/2 - (angle_b + 0.036)  # 0.036 accounts for sag in link4 of -0.054 m
@@ -189,11 +193,11 @@ def handle_calculate_IK(req):
         R0_3 = T0_1[0:3,0:3] * T1_2[0:3,0:3] * T2_3[0:3,0:3]
         R0_3 = R0_3.evalf(subs={q1: theta1, q2: theta2, q3: theta3})
 
-        # R3_6 = R0_3.inv("LU") * Rrpy
+        # R3_6 = R0_3.inv("LU") * Rrpy ## causes too much numerical instability for the wrist
         R3_6 = R0_3.transpose() * Rrpy
 
         # Euler angles from rotation matrix
-        # More informaiton can be found in hte Euler Angles from a Rotation Matrix section
+        # More information can be found in hte Euler Angles from a Rotation Matrix section
         theta4 = clip(atan2(R3_6[2,2], -R3_6[0,2]), radians(-350), radians(350))
         theta5 = clip(atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2]), radians(-125), radians(125))
         theta6 = clip(atan2(-R3_6[1,2], R3_6[1,0]), radians(-350), radians(350))
