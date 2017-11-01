@@ -117,20 +117,6 @@ def handle_calculate_IK(req):
                     [0, 0, 1]
                     ])  # YAW
 
-    # Gripper_link in URDF versus DH Convention
-    # R_z = Matrix([[cos(pi), -sin(pi), 0, 0],
-    #               [sin(pi),  cos(pi), 0, 0],
-    #               [      0,         0, 1, 0],
-    #               [      0,         0, 0, 1]
-    #               ])
-    # R_y = Matrix([[ cos(-pi/2.), 0, sin(-pi/2.), 0],
-    #               [           0, 1,              0, 0],
-    #               [-sin(-pi/2.), 0,  cos(-pi/2.), 0],
-    #               [           0, 0,               0, 1]
-    #               ])
-    # # R_corr = simplify(R_z * R_y)
-    # R_corr = R_z * R_y
-
     # Initialize service response
     joint_trajectory_list = []
     for x in xrange(0, len(req.poses)):
